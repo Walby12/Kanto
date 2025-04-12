@@ -8,7 +8,9 @@ type Word = usize;
 #[derive(Clone)]
 struct Kanto {
     stack: Vec<Word>,
-    stack_size: usize
+    stack_size: usize,
+    ip: Word,
+    halt: bool,
 }
 
 #[derive(Debug)]
@@ -19,6 +21,9 @@ enum InstType {
     InstMul,
     InstDiv,
     InstDump,
+    InstJmp,
+    InstHalt,
+    InstJmpIf0,
 }
 
 struct Inst {
@@ -74,6 +79,9 @@ fn kanto_div(vm: &mut Kanto) {
     }
 
     let a = vm.stack.pop().unwrap();
+    if a == 0 {
+        panic!("Division by zero is not possible!");
+    }
     let b = vm.stack.pop().unwrap();
     vm.stack.push(b / a);
     vm.stack_size -= 1;
@@ -98,6 +106,9 @@ fn create_inst(inst: &str, op: usize) -> Inst {
         "mul" => InstType::InstMul,
         "div" => InstType::InstDiv,
         "dump" => InstType::InstDump,
+        "jmp" => InstType::InstJmp,
+        "halt" => InstType::InstHalt,
+        "jmp_if_0" => InstType::InstJmpIf0,
         _ => panic!("Unknown instruction: {}", inst),
     };
 
@@ -107,15 +118,65 @@ fn create_inst(inst: &str, op: usize) -> Inst {
     }
 }
 
-fn exec_inst(vm: &mut Kanto, insts: Vec<Inst>) {
-    for inst in insts.iter() {
+fn exec_inst(vm: &mut Kanto, insts: &[Inst]) {
+    while !vm.halt {
+        let inst = &insts[vm.ip];
+
         match inst.itype {
-            InstType::InstPush => kanto_push(vm, inst),
-            InstType::InstPlus => kanto_plus(vm),
-            InstType::InstMinus => kanto_minus(vm),
-            InstType::InstMul => kanto_mul(vm),
-            InstType::InstDiv => kanto_div(vm),
-            InstType::InstDump => kanto_dump(vm),
+            InstType::InstPush => {
+                kanto_push(vm, inst);
+                vm.ip += 1;
+            }
+            InstType::InstPlus => {
+                kanto_plus(vm);
+                vm.ip += 1;
+            }
+            InstType::InstMinus => {
+                kanto_minus(vm);
+                vm.ip += 1;
+            }
+            InstType::InstDiv => {
+                kanto_div(vm);
+                vm.ip += 1;
+            }
+            InstType::InstMul => {
+                kanto_mul(vm);
+                vm.ip += 1;
+            }
+            InstType::InstDump => {
+                kanto_dump(vm);
+                vm.ip += 1;
+            }
+            InstType::InstJmp => {
+                if inst.operand >= insts.len() {
+                    println!("Jump out of bounds! Exiting.");
+                    return;
+                }
+                vm.ip = inst.operand;
+            }
+            InstType::InstHalt => {
+                println!("Execution halted!");
+                break;
+            }
+            InstType::InstJmpIf0 => {
+                if vm.stack_size == 0 {
+                    println!("Stack underflow during jmp_if_0!");
+                    return; 
+                }
+
+                let top = vm.stack[vm.stack_size - 1];
+
+                if top == 0 {
+                    if inst.operand >= insts.len() {
+                        println!("Jump out of bounds! Exiting.");
+                        return;
+                    }
+                    vm.ip = inst.operand;
+                } else {
+                    vm.ip += 1;
+                }
+            }
+
         }
     }
 }
@@ -124,14 +185,19 @@ fn main() {
     let mut kanto = Kanto {
         stack: Vec::new(),
         stack_size: 0,
+        ip: 0,
+        halt: false,
     };
 
     let program = vec![
-        create_inst("push", 10),
-        create_inst("push", 10),
-        create_inst("minus", 0),
+        create_inst("push", 0),
+        create_inst("jmp_if_0", 4),
+        create_inst("push", 99),
         create_inst("dump", 0),
+        create_inst("push", 42),
+        create_inst("dump", 0),
+        create_inst("halt", 0),   
     ];
 
-    exec_inst(&mut kanto, program);
+    exec_inst(&mut kanto, &program);
 }
