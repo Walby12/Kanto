@@ -1,75 +1,140 @@
-#[derive(Clone, Debug)]
-enum TokenType {
-    Number,
-    Identifier,
-    Equals,
-    OpenParen,
-    CloseParen,
-    BinaryOperator,
-    Let,
-}
+use std::fs;
+use std::env;
+use std::io;
 
-#[derive(Clone)]
-struct Token {
-    value: String,
-    t_type: TokenType,
-}
+fn tokenize(source_code: &str) {
+    let mut stack: Vec<i32> = Vec::new();
+    let mut i = 1;
 
-fn token(value: &str, t_type: TokenType) -> Token {
-    Token {
-        value: value.to_string(),
-        t_type,
+    for token in source_code.split_whitespace() {
+        match token {
+            "+" => {
+                if stack.len() < 2 {
+                    println!("Error: Not enough values on stack for '+' at index {}", i);
+                    return;
+                }
+                let a = stack.pop().unwrap();
+                let b = stack.pop().unwrap();
+                stack.push(a + b);
+            },
+            ";" => {
+                if stack.len() < 1 {
+                    println!("Error: Not enough values on stack for ';' at idnex {}", i);
+                }
+                let a = stack.pop().unwrap();
+                println!("{}", a);
+            },
+            "-" => {
+                if stack.len() < 2 {
+                    println!("Error: Not enough values on stack for '-' at index {}", i);
+                    return;
+                }
+                let a = stack.pop().unwrap();
+                let b = stack.pop().unwrap();
+                stack.push(b - a);
+            },
+            "*" => {
+                if stack.len() < 2 {
+                    println!("Error: not enough values on stack for '*' at index {}", i);
+                    return;
+                }
+                let a = stack.pop().unwrap();
+                let b = stack.pop().unwrap();
+                stack.push(a * b);
+            },
+            "/" => {
+                if stack.len() < 2 {
+                    println!("Error: not enough values on stack for '/' at index {}", i);
+                    return;
+                }
+                let a = stack.pop().unwrap();
+                if a == 0 {
+                    println!("Error: division by zero at index {}", i)
+                }
+                let b = stack.pop().unwrap();
+                stack.push(b / a);
+            },
+            "dup" => {
+                if stack.len() < 1 {
+                    println!("Error: not enough values on stack for 'dup' at index {}", i);
+                    return;
+                }
+                let a = stack.last().copied().unwrap();
+                stack.push(a);
+            },
+            "swap" => {
+                if stack.len() < 2 {
+                    println!("Error: not enough values on stack for 'swap' at index {}", i);
+                    return;
+                }
+                let a = stack.pop().unwrap();
+                let b = stack.pop().unwrap();
+                stack.push(b);
+                stack.push(a);
+            },
+            "drop" => {
+                if stack.len() < 1 {
+                    println!("Error: not enough values on stack for 'drop' at index {}", i);
+                    return;    
+                }
+                let a = stack.pop().unwrap();
+                println!("Droppped: {}", a);
+            },
+            "over" => {
+                if stack.len() < 2 {
+                    println!("Error: not enough values on stack for 'over' at index {}", i);
+                    return;
+                }
+                let a = stack.pop().unwrap();
+                let b = stack.pop().unwrap();
+                stack.push(b);
+                stack.push(a);
+                stack.push(b);
+            },
+            "show" => {
+                println!("Stack ;---;");
+                for i in stack.clone() {
+                    print!("{}  ", i);
+                }
+            },
+            _ => {
+                match token.parse::<i32>() {
+                    Ok(num) => stack.push(num),
+                    Err(_) => {
+                        println!("Error: Invalid token '{}' at index {}" , token, i);
+                        return;
+                    }
+                }
+            }
+        }
+        i += 1;
     }
 }
 
-fn tokenize(source_code: &str) -> Vec<Token> {
-    let mut tokens = Vec::new();
-    let mut src: Vec<char> = source_code.chars().collect();
-
-    while !src.is_empty() {
-        let c = src.remove(0);
-
-        if c == '(' {
-            tokens.push(token("(", TokenType::OpenParen));
-        } else if c == ')' {
-            tokens.push(token(")", TokenType::CloseParen));
-        } else if c == '+' || c == '-' {
-            tokens.push(token(&c.to_string(), TokenType::BinaryOperator));
-        } else if c == '*' || c == '/' {
-            tokens.push(token(&c.to_string(), TokenType::BinaryOperator));
-        } else if c == '=' {
-            tokens.push(token("=", TokenType::Equals));
-        } else if c.is_digit(10) {
-            let mut num = String::new();
-            num.push(c); 
-            while !src.is_empty() && src[0].is_digit(10) {
-                num.push(src.remove(0)); 
-            }
-            tokens.push(Token {
-                value: num,
-                t_type: TokenType::Number,
-            });
-        } else if c.is_alphabetic() {
-            let mut identifier = String::new();
-            identifier.push(c); 
-            while !src.is_empty() && src[0].is_alphabetic() {
-                identifier.push(src.remove(0)); 
-            }
-            tokens.push(Token {
-                value: identifier,
-                t_type: TokenType::Identifier,
-            });
+fn load_prog_from_mem(path: String) {
+    match fs::read_to_string(path) {
+        Ok(contents) => {
+            tokenize(contents.as_str());
+        }
+        Err(e) => {
+            println!("Failed to load file from memory {}", e);
         }
     }
+}
 
-    tokens
+fn usage() {
+    println!("USAGE: kanto [file_path] -- sims the prog");
 }
 
 fn main() {
-    let source_code = "let x = 42 + 3 * (y - 1)";
-    let tokens = tokenize(source_code);
-    for token in tokens {
-        println!("Token: {}, Type: {:?}", token.value, token.t_type);
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 2 {
+        println!("Too many args");
+        usage();
+    } else if args.len() == 1 {
+        usage();
+    } else {
+        load_prog_from_mem(args[1].clone());
     }
 }
 
